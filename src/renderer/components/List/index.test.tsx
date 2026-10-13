@@ -2,7 +2,7 @@
 
 import events from '@common/events'
 import { MantineProvider } from '@mantine/core'
-import { act, cleanup, render, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // jsdom lacks matchMedia; Mantine components expect it (see
@@ -77,12 +77,21 @@ vi.mock('@renderer/components/Tree', async () => {
   const React = await import('react')
 
   return {
-    Tree: ({ data, onChange }: any) => {
+    // Real Tree calls nodeRender(item) per node and renders whatever comes
+    // back (or nothing, for null) -- that's the actual mechanism List's
+    // search/tag filter bar uses to hide rows (see index.tsx's nodeRender
+    // prop). Earlier this mock ignored nodeRender entirely and always
+    // rendered every item's title directly from `data`, which made the
+    // filter bar untestable: filtering never touches `data`, only what
+    // nodeRender returns for each item.
+    Tree: ({ data, onChange, nodeRender }: any) => {
       mocks.treeOnChange = onChange
       return React.createElement(
         'div',
         { 'data-testid': 'tree' },
-        data.map((item: any) => React.createElement('div', { key: item.id }, item.title)),
+        data
+          .filter((item: any) => !nodeRender || nodeRender(item) !== null)
+          .map((item: any) => React.createElement('div', { key: item.id }, item.title)),
       )
     },
   }
@@ -139,9 +148,11 @@ vi.mock('@renderer/models/useHostsData', () => ({
 vi.mock('@renderer/models/useI18n', () => ({
   default: () => ({
     lang: {
+      clear_filters: 'Clear',
       fail: 'Fail',
       items: 'items',
       no_access_to_hosts: 'No access to hosts',
+      search: 'Search',
       success: 'Success',
       system_hosts: 'System Hosts',
       untitled: 'Untitled',
@@ -369,5 +380,59 @@ describe('List tray synchronization', () => {
     })
 
     await waitFor(() => expect(mocks.applyList).toHaveBeenCalledTimes(2))
+  })
+
+  it('hides non-matching rows when searching by title', async () => {
+    const list = [
+      { id: 'qa-1', title: 'qa-server-1', type: 'local', on: false, tags: ['qa'] },
+      { id: 'prod-1', title: 'prod-server-1', type: 'local', on: false, tags: ['prod'] },
+    ]
+    mocks.hostsData = { list, trashcan: [], version: 'test' }
+    mocks.actions.getList.mockResolvedValue(list)
+
+    const view = renderList()
+    await waitFor(() => {
+      expect(view.getByTestId('tree').textContent).toContain('qa-server-1')
+      expect(view.getByTestId('tree').textContent).toContain('prod-server-1')
+    })
+
+    fireEvent.change(view.getByLabelText('Search'), { target: { value: 'qa' } })
+
+    await waitFor(() => {
+      const text = view.getByTestId('tree').textContent
+      expect(text).toContain('qa-server-1')
+      expect(text).not.toContain('prod-server-1')
+    })
+  })
+
+  it('filters by tag when a tag chip is clicked, and Clear removes the filter', async () => {
+    const list = [
+      { id: 'qa-1', title: 'qa-server-1', type: 'local', on: false, tags: ['qa'] },
+      { id: 'prod-1', title: 'prod-server-1', type: 'local', on: false, tags: ['prod'] },
+    ]
+    mocks.hostsData = { list, trashcan: [], version: 'test' }
+    mocks.actions.getList.mockResolvedValue(list)
+
+    const view = renderList()
+    await waitFor(() => {
+      expect(view.getByText('qa')).toBeTruthy()
+      expect(view.getByText('prod')).toBeTruthy()
+    })
+
+    fireEvent.click(view.getByText('prod'))
+
+    await waitFor(() => {
+      const text = view.getByTestId('tree').textContent
+      expect(text).toContain('prod-server-1')
+      expect(text).not.toContain('qa-server-1')
+    })
+
+    fireEvent.click(view.getByText('Clear'))
+
+    await waitFor(() => {
+      const text = view.getByTestId('tree').textContent
+      expect(text).toContain('qa-server-1')
+      expect(text).toContain('prod-server-1')
+    })
   })
 })
