@@ -14,6 +14,7 @@ import type { Page } from '@playwright/test'
 
 async function startDomainEntry(page: Page, title: string) {
   await page.getByLabel('Add').click()
+  await page.getByRole('menuitem', { name: 'Add Hosts Entry' }).click()
   const drawer = page.getByRole('dialog')
   await drawer.getByText('Remote', { exact: true }).click()
   await drawer.getByLabel('Hosts Title', { exact: true }).fill(title)
@@ -52,6 +53,7 @@ test.describe('remote hosts', () => {
     await clearMockCalls(page)
 
     await page.getByLabel('Add').click()
+    await page.getByRole('menuitem', { name: 'Add Hosts Entry' }).click()
     let drawer = page.getByRole('dialog')
     await expect(drawer.getByText('Add Hosts Entry')).toBeVisible()
 

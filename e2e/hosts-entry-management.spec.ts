@@ -11,6 +11,7 @@ import {
 test.describe('hosts entry management', () => {
   test('adds a local hosts entry from the top bar', async ({ page }) => {
     await page.getByLabel('Add').click()
+    await page.getByRole('menuitem', { name: 'Add Hosts Entry' }).click()
     const drawer = page.getByRole('dialog')
     await expect(drawer.getByText('Add Hosts Entry')).toBeVisible()
 
@@ -30,6 +31,7 @@ test.describe('hosts entry management', () => {
     const longTitle = 'QA Sandbox Very Long Hosts Entry Title 1234567890'
 
     await page.getByLabel('Add').click()
+    await page.getByRole('menuitem', { name: 'Add Hosts Entry' }).click()
     const drawer = page.getByRole('dialog')
     await expect(drawer.getByText('Add Hosts Entry')).toBeVisible()
 
@@ -65,6 +67,7 @@ test.describe('hosts entry management', () => {
     const longTitle = `345${'long'.repeat(11)}abc`
 
     await page.getByLabel('Add').click()
+    await page.getByRole('menuitem', { name: 'Add Hosts Entry' }).click()
     const drawer = page.getByRole('dialog')
     await expect(drawer.getByText('Add Hosts Entry')).toBeVisible()
 
@@ -167,6 +170,7 @@ test.describe('hosts entry management', () => {
     await clearMockCalls(page)
 
     await page.getByLabel('Add').click()
+    await page.getByRole('menuitem', { name: 'Add Hosts Entry' }).click()
     const drawer = page.getByRole('dialog')
     await expect(drawer.getByText('Add Hosts Entry')).toBeVisible()
 
@@ -198,6 +202,7 @@ test.describe('hosts entry management', () => {
     await clearMockCalls(page)
 
     await page.getByLabel('Add').click()
+    await page.getByRole('menuitem', { name: 'Add Hosts Entry' }).click()
     const drawer = page.getByRole('dialog')
     await expect(drawer.getByText('Add Hosts Entry')).toBeVisible()
 
