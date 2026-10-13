@@ -14,9 +14,10 @@
 
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
+use std::time::Duration;
 
 use serde_json::{json, Value};
-use tauri::{AppHandle, Emitter, Runtime};
+use tauri::{AppHandle, Emitter, Manager, Runtime};
 
 use crate::hosts_api::{self, HostsApiError, Machine};
 use crate::storage::{entries, manifest, manifest::Manifest, transaction, AppState};
@@ -25,6 +26,7 @@ pub const FOLDER_ID: &str = "hosts-api-folder";
 pub const COMPANY_ENTRY_ID: &str = "hosts-api-company";
 const FOLDER_TITLE: &str = "API servers";
 const COMPANY_TITLE: &str = "Company (always on)";
+const SYNC_INTERVAL: Duration = Duration::from_secs(60);
 
 #[derive(Debug)]
 pub enum SyncError {
@@ -106,6 +108,29 @@ pub async fn sync<R: Runtime>(app: &AppHandle<R>, state: &AppState) -> Result<Sy
     let _ = app.emit("reload_list", json!({ "_args": [] }));
 
     Ok(SyncOutcome { machines_synced })
+}
+
+/// Wakes every 60s and re-syncs if a hosts-API source is configured, so
+/// servers added/removed on the backend show up without the user having
+/// to reopen the connect dialog. A failed attempt (no network, expired
+/// session, endpoint unreachable, ...) is logged and nothing else --
+/// never surfaced as a blocking error -- and just tried again next tick.
+/// `sync()` itself no-ops cheaply (no network call) when nothing is
+/// configured yet, so this is safe to always run.
+pub fn start_background_sync<R: Runtime + 'static>(app: AppHandle<R>) {
+    tauri::async_runtime::spawn(async move {
+        loop {
+            let state = app.state::<AppState>();
+            match sync(&app, state.inner()).await {
+                Ok(outcome) => {
+                    log::info!("hosts API background sync: {} machine(s)", outcome.machines_synced)
+                }
+                Err(SyncError::NotConfigured) => {}
+                Err(e) => log::warn!("hosts API background sync failed, retrying in 60s: {e}"),
+            }
+            tokio::time::sleep(SYNC_INTERVAL).await;
+        }
+    });
 }
 
 fn machine_node_id(label: &str) -> String {

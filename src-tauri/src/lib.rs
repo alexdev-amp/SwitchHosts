@@ -376,6 +376,10 @@ pub fn run() {
                 // Wakes every 60s, replaces `src/main/libs/cron.ts`.
                 refresh::start_background_scanner(app_handle.clone());
 
+                // Background sync for the hosts-API source (if configured),
+                // same 60s cadence -- see hosts_api_sync::start_background_sync.
+                hosts_api_sync::start_background_sync(app_handle.clone());
+
                 // Preserve the enabled preference on startup failure; the
                 // preferences pane reads runtime status and lets users fix the
                 // port without losing their intent to run the API.
