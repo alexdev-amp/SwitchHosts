@@ -137,8 +137,10 @@ export default {
   hosts_api_add_menu: 'เพิ่มแหล่งที่มา hosts API…',
   hosts_api_add_title: 'เพิ่มแหล่งที่มา Hosts API',
   hosts_api_connect: 'เชื่อมต่อ',
+  hosts_api_edit_title: 'แก้ไขแหล่งที่มา Hosts API',
   hosts_api_endpoint: 'ปลายทาง hosts API',
   hosts_api_not_configured: 'โปรดตั้งค่าแหล่งที่มา hosts API ก่อน',
+  hosts_api_password_hint: 'กรุณากรอกรหัสผ่านอีกครั้งเพื่อบันทึกการเปลี่ยนแปลง',
   hosts_api_remove: 'ลบแหล่งที่มา hosts API',
   hosts_api_remove_confirm:
     'ลบแหล่งที่มา hosts API หรือไม่? รหัสผ่านที่บันทึกไว้จะถูกลืม และโฟลเดอร์เครื่องที่ซิงค์แล้วจะถูกลบ รายการที่คุณเพิ่มเองจะไม่ได้รับผลกระทบ',

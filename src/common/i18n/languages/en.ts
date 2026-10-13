@@ -147,8 +147,10 @@ export default {
   hosts_api_add_menu: 'Add hosts API source…',
   hosts_api_add_title: 'Add Hosts API Source',
   hosts_api_connect: 'Connect',
+  hosts_api_edit_title: 'Edit Hosts API Source',
   hosts_api_endpoint: 'Hosts API endpoint',
   hosts_api_not_configured: 'Set up a hosts API source first.',
+  hosts_api_password_hint: 'Re-enter your password to save changes.',
   hosts_api_remove: 'Remove hosts API source',
   hosts_api_remove_confirm:
     'Remove the hosts API source? This forgets the saved password and deletes the synced machines folder; your own entries are not affected.',

@@ -149,8 +149,10 @@ const lang: LanguageDict = {
   hosts_api_add_menu: 'hosts APIソースを追加…',
   hosts_api_add_title: 'Hosts APIソースを追加',
   hosts_api_connect: '接続',
+  hosts_api_edit_title: 'Hosts APIソースを編集',
   hosts_api_endpoint: 'hosts APIエンドポイント',
   hosts_api_not_configured: '先にhosts APIソースを設定してください。',
+  hosts_api_password_hint: '変更を保存するにはパスワードを再入力してください。',
   hosts_api_remove: 'hosts APIソースを削除',
   hosts_api_remove_confirm:
     'hosts APIソースを削除しますか？保存されたパスワードは削除され、同期済みのマシンフォルダも削除されます。自分で追加した項目には影響しません。',

@@ -147,8 +147,10 @@ export default {
   hosts_api_add_menu: 'Aggiungi fonte API hosts…',
   hosts_api_add_title: 'Aggiungi Fonte API Hosts',
   hosts_api_connect: 'Connetti',
+  hosts_api_edit_title: 'Modifica Fonte API Hosts',
   hosts_api_endpoint: 'Endpoint API hosts',
   hosts_api_not_configured: 'Configura prima una fonte API hosts.',
+  hosts_api_password_hint: 'Reinserisci la password per salvare le modifiche.',
   hosts_api_remove: 'Rimuovi fonte API hosts',
   hosts_api_remove_confirm:
     'Rimuovere la fonte API hosts? La password salvata verrà dimenticata e la cartella delle macchine sincronizzate verrà eliminata; le voci aggiunte manualmente non saranno interessate.',

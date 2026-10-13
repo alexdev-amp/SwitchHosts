@@ -156,8 +156,10 @@ const lang: LanguageDict = {
   hosts_api_add_menu: 'Hosts-API-Quelle hinzufügen…',
   hosts_api_add_title: 'Hosts-API-Quelle hinzufügen',
   hosts_api_connect: 'Verbinden',
+  hosts_api_edit_title: 'Hosts-API-Quelle bearbeiten',
   hosts_api_endpoint: 'Hosts-API-Endpunkt',
   hosts_api_not_configured: 'Richten Sie zuerst eine Hosts-API-Quelle ein.',
+  hosts_api_password_hint: 'Geben Sie Ihr Passwort erneut ein, um die Änderungen zu speichern.',
   hosts_api_remove: 'Hosts-API-Quelle entfernen',
   hosts_api_remove_confirm:
     'Hosts-API-Quelle entfernen? Das gespeicherte Passwort wird gelöscht und der Ordner mit den synchronisierten Rechnern wird entfernt; eigene Einträge bleiben unberührt.',

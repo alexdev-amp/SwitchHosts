@@ -20,6 +20,7 @@ const AddHostsApiSource = () => {
   const { lang, i18n } = useI18n()
   const { configs, updateConfigs } = useConfigs()
   const [isShow, setIsShow] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
   const [endpoint, setEndpoint] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -28,6 +29,7 @@ const AddHostsApiSource = () => {
   useOnBroadcast(
     events.add_hosts_api_source,
     () => {
+      setIsEditing(!!configs?.hosts_api_base_url)
       setEndpoint(configs?.hosts_api_base_url || '')
       setUsername(configs?.hosts_api_username || '')
       setPassword('')
@@ -87,7 +89,7 @@ const AddHostsApiSource = () => {
       title={
         <Group gap="8px">
           <BiServer />
-          <Box>{lang.hosts_api_add_title}</Box>
+          <Box>{isEditing ? lang.hosts_api_edit_title : lang.hosts_api_add_title}</Box>
         </Group>
       }
       footer={
@@ -96,7 +98,7 @@ const AddHostsApiSource = () => {
             {lang.btn_cancel}
           </Button>
           <Button onClick={onConnect} loading={isConnecting}>
-            {lang.hosts_api_connect}
+            {isEditing ? lang.btn_save : lang.hosts_api_connect}
           </Button>
         </Group>
       }
@@ -128,6 +130,11 @@ const AddHostsApiSource = () => {
             onChange={(e) => setPassword(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && !isConnecting && onConnect()}
           />
+          {isEditing && (
+            <Text size="xs" c="dimmed" mt="4px">
+              {lang.hosts_api_password_hint}
+            </Text>
+          )}
         </Box>
       </Box>
     </SideDrawer>

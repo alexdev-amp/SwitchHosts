@@ -145,8 +145,10 @@ export default {
   hosts_api_add_menu: 'hosts API 소스 추가…',
   hosts_api_add_title: 'Hosts API 소스 추가',
   hosts_api_connect: '연결',
+  hosts_api_edit_title: 'Hosts API 소스 편집',
   hosts_api_endpoint: 'hosts API 엔드포인트',
   hosts_api_not_configured: '먼저 hosts API 소스를 설정하세요.',
+  hosts_api_password_hint: '변경 사항을 저장하려면 비밀번호를 다시 입력하세요.',
   hosts_api_remove: 'hosts API 소스 제거',
   hosts_api_remove_confirm:
     'hosts API 소스를 제거할까요? 저장된 비밀번호가 삭제되고 동기화된 머신 폴더가 제거됩니다. 직접 추가한 항목에는 영향을 주지 않습니다.',

@@ -149,8 +149,10 @@ export default {
   hosts_api_add_menu: 'Hosts API kaynağı ekle…',
   hosts_api_add_title: 'Hosts API Kaynağı Ekle',
   hosts_api_connect: 'Bağlan',
+  hosts_api_edit_title: 'Hosts API Kaynağını Düzenle',
   hosts_api_endpoint: 'Hosts API uç noktası',
   hosts_api_not_configured: 'Önce bir hosts API kaynağı ayarlayın.',
+  hosts_api_password_hint: 'Değişiklikleri kaydetmek için parolanızı yeniden girin.',
   hosts_api_remove: 'Hosts API kaynağını kaldır',
   hosts_api_remove_confirm:
     'Hosts API kaynağı kaldırılsın mı? Kayıtlı parola unutulur ve senkronize edilen makineler klasörü silinir; kendi eklediğiniz girişler etkilenmez.',

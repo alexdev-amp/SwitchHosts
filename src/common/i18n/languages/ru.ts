@@ -144,8 +144,10 @@ export default {
   hosts_api_add_menu: 'Добавить источник hosts API…',
   hosts_api_add_title: 'Добавить Источник Hosts API',
   hosts_api_connect: 'Подключиться',
+  hosts_api_edit_title: 'Изменить Источник Hosts API',
   hosts_api_endpoint: 'Конечная точка hosts API',
   hosts_api_not_configured: 'Сначала настройте источник hosts API.',
+  hosts_api_password_hint: 'Введите пароль ещё раз, чтобы сохранить изменения.',
   hosts_api_remove: 'Удалить источник hosts API',
   hosts_api_remove_confirm:
     'Удалить источник hosts API? Сохранённый пароль будет забыт, а папка синхронизированных машин — удалена; ваши собственные записи не пострадают.',

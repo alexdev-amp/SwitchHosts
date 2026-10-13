@@ -147,8 +147,10 @@ export default {
   hosts_api_add_menu: 'Hosts-API-bron toevoegen…',
   hosts_api_add_title: 'Hosts-API-bron Toevoegen',
   hosts_api_connect: 'Verbinden',
+  hosts_api_edit_title: 'Hosts-API-bron Bewerken',
   hosts_api_endpoint: 'Hosts-API-eindpunt',
   hosts_api_not_configured: 'Stel eerst een hosts-API-bron in.',
+  hosts_api_password_hint: 'Voer je wachtwoord opnieuw in om de wijzigingen op te slaan.',
   hosts_api_remove: 'Hosts-API-bron verwijderen',
   hosts_api_remove_confirm:
     'Hosts-API-bron verwijderen? Het opgeslagen wachtwoord wordt vergeten en de map met gesynchroniseerde machines wordt verwijderd; je eigen items blijven ongewijzigd.',

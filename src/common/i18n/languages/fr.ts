@@ -155,8 +155,10 @@ const lang: LanguageDict = {
   hosts_api_add_menu: 'Ajouter une source API hosts…',
   hosts_api_add_title: 'Ajouter une Source API Hosts',
   hosts_api_connect: 'Connexion',
+  hosts_api_edit_title: 'Modifier la Source API Hosts',
   hosts_api_endpoint: "Point de terminaison de l'API hosts",
   hosts_api_not_configured: "Configurez d'abord une source API hosts.",
+  hosts_api_password_hint: 'Ressaisissez votre mot de passe pour enregistrer les modifications.',
   hosts_api_remove: 'Supprimer la source API hosts',
   hosts_api_remove_confirm:
     'Supprimer la source API hosts ? Le mot de passe enregistré sera oublié et le dossier des machines synchronisées sera supprimé ; vos propres entrées ne sont pas concernées.',

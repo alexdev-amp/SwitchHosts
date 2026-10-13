@@ -141,8 +141,10 @@ export default {
   hosts_api_add_menu: 'Thêm nguồn API hosts…',
   hosts_api_add_title: 'Thêm Nguồn API Hosts',
   hosts_api_connect: 'Kết nối',
+  hosts_api_edit_title: 'Sửa Nguồn API Hosts',
   hosts_api_endpoint: 'Điểm cuối API hosts',
   hosts_api_not_configured: 'Hãy thiết lập nguồn API hosts trước.',
+  hosts_api_password_hint: 'Nhập lại mật khẩu để lưu thay đổi.',
   hosts_api_remove: 'Xóa nguồn API hosts',
   hosts_api_remove_confirm:
     'Xóa nguồn API hosts? Mật khẩu đã lưu sẽ bị quên và thư mục các máy đã đồng bộ sẽ bị xóa; các mục bạn tự thêm sẽ không bị ảnh hưởng.',

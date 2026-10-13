@@ -151,8 +151,10 @@ export default {
   hosts_api_add_menu: 'Dodaj źródło API hostów…',
   hosts_api_add_title: 'Dodaj Źródło API Hostów',
   hosts_api_connect: 'Połącz',
+  hosts_api_edit_title: 'Edytuj Źródło API Hostów',
   hosts_api_endpoint: 'Punkt końcowy API hostów',
   hosts_api_not_configured: 'Najpierw skonfiguruj źródło API hostów.',
+  hosts_api_password_hint: 'Wprowadź ponownie hasło, aby zapisać zmiany.',
   hosts_api_remove: 'Usuń źródło API hostów',
   hosts_api_remove_confirm:
     'Usunąć źródło API hostów? Zapisane hasło zostanie zapomniane, a folder zsynchronizowanych maszyn usunięty; Twoje własne wpisy nie zostaną naruszone.',

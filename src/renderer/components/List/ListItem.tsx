@@ -4,6 +4,7 @@
  */
 
 import { IHostsListObject } from '@common/data'
+import { hostsApiFolderId } from '@common/constants'
 import events from '@common/events'
 import { IMenuItemOption } from '@common/types'
 import { ActionIcon } from '@mantine/core'
@@ -89,6 +90,17 @@ const ListItem = (props: Props) => {
   const isSelected = data.id === currentHosts?.id
   const title = data.title || lang.untitled
 
+  // The hosts-API folder is synced content, not a regular folder a user
+  // configures via the generic editor -- its "Edit" opens the connect
+  // dialog instead, so endpoint/username/password can be changed.
+  const openEdit = () => {
+    if (data.id === hostsApiFolderId) {
+      agent.broadcast(events.add_hosts_api_source)
+    } else {
+      agent.broadcast(events.edit_hosts_info, data)
+    }
+  }
+
   return (
     <div
       className={clsx(styles.root, isSelected && styles.selected, isTray && styles.isTray)}
@@ -103,9 +115,7 @@ const ListItem = (props: Props) => {
         let menuItems: IMenuItemOption[] = [
           {
             label: lang.edit,
-            click() {
-              agent.broadcast(events.edit_hosts_info, data)
-            },
+            click: openEdit,
           },
           {
             label: lang.refresh,
@@ -194,9 +204,7 @@ const ListItem = (props: Props) => {
             <div className={styles.edit}>
               <ActionIcon
                 variant="subtle"
-                onClick={() => {
-                  agent.broadcast(events.edit_hosts_info, data)
-                }}
+                onClick={openEdit}
                 size={24}
               >
                 <IconEdit size={16} stroke={1.5} />
