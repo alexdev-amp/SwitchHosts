@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import events from '@common/events'
+import { MantineProvider } from '@mantine/core'
 import { act, cleanup, render, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -123,6 +124,18 @@ vi.mock('@renderer/models/useI18n', () => ({
 
 import List from './index'
 
+// List's new search/tag filter bar renders Mantine components directly
+// (previously it only rendered Tree/ListItem, neither of which need a
+// Mantine context), so every render now needs a MantineProvider ancestor
+// -- the real app provides one much higher up the tree; tests must too.
+function renderList() {
+  return render(
+    <MantineProvider>
+      <List />
+    </MantineProvider>,
+  )
+}
+
 function deferred<T = void>() {
   let resolve!: (value: T | PromiseLike<T>) => void
   let reject!: (reason?: unknown) => void
@@ -175,7 +188,7 @@ describe('List tray synchronization', () => {
   it('waits for application and passes a latest-list updater for toggles', async () => {
     const pending = deferred<boolean>()
     mocks.applyList.mockReturnValue(pending.promise)
-    render(<List />)
+    renderList()
     let toggle!: Promise<unknown>
     await act(async () => {
       toggle = Promise.resolve(latestHandler(events.toggle_item)('local-dev', true))
@@ -194,7 +207,7 @@ describe('List tray synchronization', () => {
 
   it('reverts the optimistic switch only when application reports a reverted or failed write', async () => {
     mocks.applyList.mockResolvedValue(false)
-    render(<List />)
+    renderList()
     await act(async () => {
       await latestHandler(events.toggle_item)('local-dev', true)
     })
@@ -203,7 +216,7 @@ describe('List tray synchronization', () => {
 
   it('does not broadcast a known switch state when the application result is unknown', async () => {
     mocks.applyList.mockResolvedValue(null)
-    render(<List />)
+    renderList()
     await act(async () => {
       await latestHandler(events.toggle_item)('local-dev', true)
     })
@@ -213,7 +226,7 @@ describe('List tray synchronization', () => {
 
   it('reports move failures without reloading or changing selection', async () => {
     mocks.actions.moveManyToTrashcan.mockRejectedValue({ reason: 'Corrupt trashcan' })
-    render(<List />)
+    renderList()
     await act(async () => {
       await latestHandler(events.move_to_trashcan)(['local-dev'])
     })
@@ -228,7 +241,7 @@ describe('List tray synchronization', () => {
   it('restores the displayed tree when a drag cannot be persisted', async () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     mocks.setList.mockRejectedValue(new Error('disk full'))
-    const view = render(<List />)
+    const view = renderList()
     await act(async () => {
       mocks.treeOnChange([...mocks.hostsList].reverse())
     })
@@ -246,7 +259,7 @@ describe('List tray synchronization', () => {
     mocks.hostsData = { list, trashcan: [], version: 'test' }
     mocks.actions.getList.mockResolvedValue(list)
 
-    render(<List />)
+    renderList()
 
     await act(async () => {
       await Promise.resolve(latestHandler(events.hosts_content_changed)('remote-on'))
@@ -264,7 +277,7 @@ describe('List tray synchronization', () => {
     mocks.hostsData = { list, trashcan: [], version: 'test' }
     mocks.actions.getList.mockResolvedValue(list)
 
-    render(<List />)
+    renderList()
 
     await act(async () => {
       await Promise.resolve(
@@ -284,7 +297,7 @@ describe('List tray synchronization', () => {
     mocks.hostsData = { list, trashcan: [], version: 'test' }
     mocks.actions.getList.mockResolvedValue(list)
 
-    render(<List />)
+    renderList()
 
     await act(async () => {
       await Promise.resolve(
@@ -306,7 +319,7 @@ describe('List tray synchronization', () => {
     mocks.actions.getList.mockResolvedValue(list)
     mocks.applyList.mockReturnValueOnce(firstApply.promise).mockResolvedValue(true)
 
-    render(<List />)
+    renderList()
     const handler = latestHandler(events.hosts_content_changed)
 
     let firstHandlerPromise!: Promise<unknown>
