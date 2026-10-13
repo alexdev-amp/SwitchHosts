@@ -94,22 +94,22 @@ fn setup_skips_main_window_creation_when_hide_at_launch_is_on() {
 fn data_dir_recovery_gates_fallback_side_effects() {
     const SOURCE: &str = include_str!("../src/lib.rs");
     // While the data directory is unavailable (gone, or its pointer corrupt)
-    // we fall back to the default root only to show the recovery dialog. Five
+    // we fall back to the default root only to show the recovery dialog. Four
     // startup side effects that would read/write/expose that fallback root
     // stay gated behind `data_dir_recovery.is_none()`: hide_at_launch (force
     // the window so the dialog shows), the tray title, the refresh scanner +
-    // HTTP API, the launch_at_login config persist, and the auto-update
-    // checker. Catch silently dropping any.
+    // HTTP API, and the launch_at_login config persist. (A fifth gate, the
+    // auto-update checker, was removed along with the auto-updater itself --
+    // this is an internal tool now, not a publicly distributed app that
+    // needs a self-update mechanism.) Catch silently dropping any of the rest.
     let guards = SOURCE.matches("data_dir_recovery.is_none()").count();
     assert!(
-        guards >= 5,
-        "expected >=5 `data_dir_recovery.is_none()` guards in lib.rs setup (hide_at_launch, tray title, background services, launch_at_login persist, auto-update checker); found {guards}"
+        guards >= 4,
+        "expected >=4 `data_dir_recovery.is_none()` guards in lib.rs setup (hide_at_launch, tray title, background services, launch_at_login persist); found {guards}"
     );
     assert!(
-        SOURCE.contains("start_background_scanner")
-            && SOURCE.contains("refresh_title")
-            && SOURCE.contains("start_auto_update_checker"),
-        "the gated side effects (refresh scanner, tray title, auto-update checker) must still be present"
+        SOURCE.contains("start_background_scanner") && SOURCE.contains("refresh_title"),
+        "the gated side effects (refresh scanner, tray title) must still be present"
     );
 }
 

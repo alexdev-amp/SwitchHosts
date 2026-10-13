@@ -58,7 +58,6 @@
     http_api_port: 50761,
     tray_mini_window: true,
     multi_chose_folder_switch_all: false,
-    auto_check_update: true,
     find_is_regexp: false,
     find_is_ignore_case: false,
     find_result_column_widths: [],
@@ -174,8 +173,6 @@
     nextApplyResult: null,
     nextRefreshResult: null,
     nextDomainRefreshFailures: {},
-    nextCheckUpdateResult: { has_update: false },
-    nextCheckUpdateDelayMs: 0,
   }
 
   const searchParams = new URLSearchParams(window.location.search)
@@ -186,10 +183,6 @@
 
   if (searchParams.get('e2eWriteMode') === 'null') {
     state.configs.write_mode = null
-  }
-
-  if (searchParams.get('e2eAutoCheckUpdate') === 'false') {
-    state.configs.auto_check_update = false
   }
 
   if (searchParams.get('e2eLegacyDomain') === 'true') {
@@ -217,14 +210,6 @@
       on: false,
     })
     state.contents['malformed-domain'] = '198.51.100.10 github.com\n'
-  }
-
-  if (searchParams.get('e2eUpdateAvailable') === 'true') {
-    state.nextCheckUpdateResult = {
-      has_update: true,
-      version: '5.0.1',
-      releaseNotes: 'Mock release notes',
-    }
   }
 
   const deleteContentsForItem = (item) => {
@@ -465,18 +450,7 @@
     failNextImportFromUrl: (result = 'mock_import_url_error') => {
       state.nextImportFromUrlResult = result
     },
-    delayNextCheckUpdate: (ms = 300) => {
-      state.nextCheckUpdateDelayMs = ms
-    },
-    setNextCheckUpdateResult: (result = { has_update: false }) => {
-      state.nextCheckUpdateResult = result
-    },
     toggleComment: () => dispatchEvent('toggle_comment', { _args: [] }),
-    emitNextUpdateAvailable: () => {
-      if (state.nextCheckUpdateResult?.has_update) {
-        dispatchEvent('new_version', { _args: [clone(state.nextCheckUpdateResult)] })
-      }
-    },
   }
 
   window.__TAURI_EVENT_PLUGIN_INTERNALS__ = {
@@ -884,40 +858,6 @@
         case 'show_item_in_folder':
         case 'popup_menu':
           return true
-        case 'check_update':
-          if (state.nextCheckUpdateDelayMs) {
-            const ms = state.nextCheckUpdateDelayMs
-            state.nextCheckUpdateDelayMs = 0
-            await delay(ms)
-          }
-          if (state.nextCheckUpdateResult instanceof Error) {
-            const error = state.nextCheckUpdateResult
-            state.nextCheckUpdateResult = { has_update: false }
-            throw error
-          }
-          if (state.nextCheckUpdateResult?.has_update) {
-            dispatchEvent('new_version', { _args: [clone(state.nextCheckUpdateResult)] })
-          }
-          return clone(state.nextCheckUpdateResult)
-        case 'download_update':
-          dispatchEvent('update_download_progress', {
-            _args: [{ percent: 100, transferred: 1, total: 1, bytesPerSecond: 0 }],
-          })
-          dispatchEvent('update_downloaded', {
-            _args: [
-              clone(
-                state.nextCheckUpdateResult?.has_update
-                  ? state.nextCheckUpdateResult
-                  : {
-                      version: '5.0.1',
-                      releaseNotes: 'Mock release notes',
-                    },
-              ),
-            ],
-          })
-          return null
-        case 'install_update':
-          return null
         default:
           throw new Error(`Unhandled Tauri mock command: ${cmd}`)
       }

@@ -49,7 +49,6 @@ interface MockState {
     proxy_host: string
     proxy_port: number
     refresh_remote_hosts_on_startup: boolean
-    auto_check_update: boolean
     http_api_on: boolean
     http_api_only_local: boolean
     http_api_port: number
@@ -88,9 +87,6 @@ declare global {
       failNextImport: (result?: string | false | null) => void
       delayNextImportFromUrl: (ms?: number) => void
       failNextImportFromUrl: (result?: string | false | null) => void
-      delayNextCheckUpdate: (ms?: number) => void
-      setNextCheckUpdateResult: (result?: unknown) => void
-      emitNextUpdateAvailable: () => void
       toggleComment: () => void
     }
   }
