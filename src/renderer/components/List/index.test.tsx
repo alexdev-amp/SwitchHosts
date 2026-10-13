@@ -5,6 +5,33 @@ import { MantineProvider } from '@mantine/core'
 import { act, cleanup, render, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+// jsdom lacks matchMedia; Mantine components expect it (see
+// EditHostsInfo.test.tsx / RightPanel/index.test.tsx for the same shim).
+if (!window.matchMedia) {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: (query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  })
+}
+
+// jsdom lacks ResizeObserver; Mantine components expect it
+if (!(window as any).ResizeObserver) {
+  ;(window as any).ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+}
+
 type Handler = (...args: any[]) => unknown
 
 const mocks = vi.hoisted(() => ({
