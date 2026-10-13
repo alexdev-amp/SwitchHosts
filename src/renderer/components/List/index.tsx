@@ -7,6 +7,7 @@ import { IHostsListObject } from '@common/data'
 import events from '@common/events'
 import { findItemById, flatten, getNextSelectedItem, setOnStateOfItem } from '@common/hostsFn'
 import { IFindShowSourceParam } from '@common/types'
+import { Box, Button, Group, TextInput } from '@mantine/core'
 import ApplicationRecoveryNotice from '@renderer/components/ApplicationRecoveryNotice'
 import ItemIcon from '@renderer/components/ItemIcon'
 import { Tree } from '@renderer/components/Tree'
@@ -17,7 +18,7 @@ import useConfigs from '@renderer/models/useConfigs'
 import useHostsData from '@renderer/models/useHostsData'
 import useI18n from '@renderer/models/useI18n'
 import clsx from 'clsx'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { BiChevronRight } from 'react-icons/bi'
 import styles from './index.module.scss'
 import ListItem from './ListItem'
@@ -51,6 +52,58 @@ const List = (props: Props) => {
   const { lang } = useI18n()
   const [selectedIds, setSelectedIds] = useState<string[]>(isTray ? [] : [currentHosts?.id || '0'])
   const [showList, setShowList] = useState<IHostsListObject[]>([])
+  const [search, setSearch] = useState('')
+  const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set())
+
+  // Hundreds of hosts is the normal case for an API-backed source, so
+  // search/tag filtering only hides rows for display -- it never touches
+  // `showList`/`hostsData.list` themselves, which also serve as the
+  // write-back source for drag-and-drop reordering (see the Tree
+  // `onChange` below). Filtering `data` directly would silently drop
+  // every hidden node the next time the user reorders anything.
+  const allTags = useMemo(() => {
+    const set = new Set<string>()
+    flatten(hostsData.list).forEach((item) => (item.tags || []).forEach((t) => set.add(t)))
+    return Array.from(set).sort()
+  }, [hostsData.list])
+
+  const filterActive = search.trim() !== '' || selectedTags.size > 0
+
+  const nodeMatchesFilter = useCallback(
+    (item: IHostsListObject) => {
+      if (selectedTags.size > 0 && !(item.tags || []).some((t) => selectedTags.has(t))) {
+        return false
+      }
+      const needle = search.trim().toLowerCase()
+      if (!needle) return true
+      return (
+        (item.title || '').toLowerCase().includes(needle) ||
+        (item.tags || []).some((t) => t.toLowerCase().includes(needle))
+      )
+    },
+    [search, selectedTags],
+  )
+
+  // A folder stays visible whenever any descendant matches, even if the
+  // folder itself doesn't -- otherwise filtering would hide the very
+  // thing a match is nested inside.
+  const visibleIds = useMemo(() => {
+    if (!filterActive) return null
+    const ids = new Set<string>()
+    const walk = (items: IHostsListObject[]): boolean => {
+      let anyVisible = false
+      items.forEach((item) => {
+        const childVisible = item.children ? walk(item.children) : false
+        if (nodeMatchesFilter(item) || childVisible) {
+          ids.add(item.id)
+          anyVisible = true
+        }
+      })
+      return anyVisible
+    }
+    walk(hostsData.list)
+    return ids
+  }, [hostsData.list, filterActive, nodeMatchesFilter])
   const latestHostsData = useRef(hostsData)
   const changeRevision = useRef(0)
   const remoteContentApplyRef = useRef({
@@ -237,6 +290,46 @@ const List = (props: Props) => {
   return (
     <div className={styles.root}>
       <ApplicationRecoveryNotice />
+      {!isTray && (hostsData.list.length > 0 || allTags.length > 0) && (
+        <Box className={styles.filter_bar}>
+          <TextInput
+            aria-label={lang.search}
+            placeholder={lang.search}
+            size="xs"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          {allTags.length > 0 && (
+            <Group gap="4px" mt="6px" wrap="wrap">
+              {allTags.map((tag) => {
+                const active = selectedTags.has(tag)
+                return (
+                  <Button
+                    key={tag}
+                    size="compact-xs"
+                    variant={active ? 'filled' : 'outline'}
+                    onClick={() =>
+                      setSelectedTags((prev) => {
+                        const next = new Set(prev)
+                        if (active) next.delete(tag)
+                        else next.add(tag)
+                        return next
+                      })
+                    }
+                  >
+                    {tag}
+                  </Button>
+                )
+              })}
+              {selectedTags.size > 0 && (
+                <Button size="compact-xs" variant="subtle" onClick={() => setSelectedTags(new Set())}>
+                  {lang.clear_filters}
+                </Button>
+              )}
+            </Group>
+          )}
+        </Box>
+      )}
       <Tree
         data={showList}
         selectedIds={selectedIds}
@@ -281,9 +374,10 @@ const List = (props: Props) => {
           if (isTray) return
           setSelectedIds(ids)
         }}
-        nodeRender={(data) => (
-          <ListItem key={data.id} data={data} isTray={isTray} selectedIds={selectedIds} />
-        )}
+        nodeRender={(data) => {
+          if (visibleIds && !data.is_sys && !visibleIds.has(data.id)) return null
+          return <ListItem key={data.id} data={data} isTray={isTray} selectedIds={selectedIds} />
+        }}
         collapseArrow={
           <div
             style={{

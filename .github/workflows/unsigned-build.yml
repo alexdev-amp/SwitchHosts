@@ -1,0 +1,163 @@
+# Unsigned build, on every push to master.
+#
+# Separate from release.yml on purpose: release.yml is the tag-triggered,
+# signed/notarized, multi-arch pipeline (needs Apple + Tauri signing
+# secrets configured). This one needs none of that — it builds exactly
+# one unsigned artifact per OS (macOS universal, Windows, Linux) and
+# republishes them to a single rolling "nightly" pre-release, so there's
+# always one stable link to the latest master build.
+#
+# Unsigned means Gatekeeper/SmartScreen will warn on first run:
+#   macOS:   right-click the app -> Open, once.
+#   Windows: "More info" -> "Run anyway" on the SmartScreen prompt.
+
+name: Unsigned Build
+
+on:
+  push:
+    branches:
+      - master
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+# A push while a build is still running cancels the stale one instead of
+# piling up redundant runs for commits nobody will download anyway.
+concurrency:
+  group: unsigned-build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: --target universal-apple-darwin
+            rust_targets: aarch64-apple-darwin,x86_64-apple-darwin
+          - platform: ubuntu-latest
+            args: ''
+            rust_targets: ''
+          - platform: windows-latest
+            args: --bundles nsis
+            rust_targets: ''
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_targets }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2.9.2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install Linux deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            rpm
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      # No APPLE_*/TAURI_SIGNING_* secrets passed in -- an absent signing
+      # identity just means the bundler falls back to ad-hoc/unsigned
+      # output instead of failing (unlike release.yml's explicit
+      # "Validate macOS signing secrets" gate, which this workflow skips
+      # entirely).
+      - name: Build (unsigned)
+        uses: tauri-apps/tauri-action@action-v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: ${{ matrix.args }}
+
+      - name: Collect bundle files
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist-artifacts
+          find src-tauri/target -type f \( \
+              -name '*.dmg' -o \
+              -name '*-setup.exe' -o \
+              -name '*.msi' -o \
+              -name '*.AppImage' -o \
+              -name '*.deb' -o \
+              -name '*.rpm' \
+            \) -exec cp {} dist-artifacts/ \;
+          ls -la dist-artifacts
+
+      - name: Upload workflow-run artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: switchhosts-${{ matrix.platform }}
+          path: dist-artifacts/*
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Download all platform artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Flatten artifacts
+        run: |
+          mkdir -p release
+          find artifacts -type f -exec cp {} release/ \;
+          ls -la release
+
+      # Moves the rolling "nightly" tag forward: delete the previous
+      # release+tag (first run on a fresh repo has none, hence `|| true`)
+      # so the new release is created fresh at the current commit instead
+      # of silently reusing the old tag's commit.
+      - name: Remove previous nightly release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release delete nightly --yes --cleanup-tag || true
+
+      - name: Publish rolling nightly release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: nightly
+          name: 'Nightly (unsigned)'
+          target_commitish: ${{ github.sha }}
+          prerelease: true
+          make_latest: false
+          body: |
+            Automatic **unsigned** build from the latest push to `master` (${{ github.sha }}).
+
+            Not code-signed or notarized:
+            - **macOS**: right-click the app → *Open* the first time to bypass Gatekeeper.
+            - **Windows**: click *More info* → *Run anyway* on the SmartScreen prompt.
+            - **Linux**: no restrictions.
+
+            This release is replaced on every push to `master` — it is not a stable version.
+          files: release/*

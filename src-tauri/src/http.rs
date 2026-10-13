@@ -199,10 +199,8 @@ mod tests {
         }
     }
 
-    /// The app and tauri-plugin-updater share reqwest 0.13, so enabling
-    /// `socks` on our client also enables it for update downloads.
     #[test]
-    fn socks_feature_unified_into_updater_reqwest() {
+    fn socks_proxy_scheme_is_accepted() {
         let proxy = reqwest::Proxy::all("socks5://127.0.0.1:1080");
 
         assert!(proxy.is_ok());

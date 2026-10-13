@@ -30,6 +30,15 @@ export interface IHostsListObject {
   last_refresh_ms?: number
   refresh_interval?: number // 单位：秒
 
+  // hosts API source — synced machine entries under the single-choice
+  // folder created by sync_hosts_api (see src-tauri/src/hosts_api_sync.rs).
+  // These are plain `local` entries, not a distinct HostsType; these
+  // fields just carry the extra metadata the sync wrote.
+  tags?: string[]
+  hosts_api_label?: string
+  hosts_api_state?: string
+  hosts_api_ip?: string | null
+
   // group
   include?: string[]
 

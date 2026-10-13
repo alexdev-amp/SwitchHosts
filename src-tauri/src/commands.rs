@@ -12,7 +12,6 @@
 
 use std::path::PathBuf;
 use std::sync::{atomic::Ordering, Arc};
-use std::time::Duration;
 
 use serde_json::{json, Value};
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
@@ -321,7 +320,6 @@ fn apply_launch_at_login(app: &AppHandle<Wry>, enabled: bool) -> Result<(), Stor
 fn apply_side_effects(app: &AppHandle<Wry>, state: &AppState, touched_keys: &[&str]) {
     let touches_locale = touched_keys.iter().any(|k| *k == "locale");
     let touches_tray_title = touched_keys.iter().any(|k| *k == "show_title_on_tray");
-    let touches_auto_update = touched_keys.iter().any(|k| *k == "auto_check_update");
 
     if touches_locale {
         if let Err(e) = app_menu::refresh(app) {
@@ -347,19 +345,6 @@ fn apply_side_effects(app: &AppHandle<Wry>, state: &AppState, touched_keys: &[&s
             };
             lifecycle::apply_dock_icon_policy(app, hide);
             tray::refresh_menu(app);
-        }
-    }
-
-    if touches_auto_update {
-        let enabled = {
-            let cfg = state.config.lock().expect("config mutex poisoned");
-            cfg.auto_check_update
-        };
-        if enabled {
-            let app = app.clone();
-            tauri::async_runtime::spawn(async move {
-                run_auto_update_check(&app).await;
-            });
         }
     }
 }
@@ -1047,6 +1032,45 @@ pub async fn helper_open_login_items() -> Value {
 }
 
 #[tauri::command]
+pub async fn hosts_api_save_password(args: Args) -> Result<Value, String> {
+    let username = args
+        .first()
+        .and_then(Value::as_str)
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| "hosts_api_save_password: args[0] must be a non-empty username".to_string())?;
+    let password = args
+        .get(1)
+        .and_then(Value::as_str)
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| "hosts_api_save_password: args[1] must be a non-empty password".to_string())?;
+    crate::hosts_api_sync::store_password(username, password).map_err(|e| e.to_string())?;
+    Ok(Value::Null)
+}
+
+#[tauri::command]
+pub async fn hosts_api_forget_password(args: Args) -> Result<Value, String> {
+    let username = args
+        .first()
+        .and_then(Value::as_str)
+        .ok_or_else(|| "hosts_api_forget_password: args[0] must be a string".to_string())?;
+    crate::hosts_api_sync::forget_password(username).map_err(|e| e.to_string())?;
+    Ok(Value::Null)
+}
+
+#[tauri::command]
+pub async fn sync_hosts_api<R: Runtime>(
+    app: AppHandle<R>,
+    state: State<'_, AppState>,
+    _args: Args,
+) -> Result<Value, String> {
+    state.require_data_dir_usable().map_err(|e| e.to_string())?;
+    match crate::hosts_api_sync::sync(&app, state.inner()).await {
+        Ok(outcome) => Ok(json!({ "success": true, "machines_synced": outcome.machines_synced })),
+        Err(e) => Ok(json!({ "success": false, "message": e.to_string() })),
+    }
+}
+
+#[tauri::command]
 pub async fn refresh_remote_hosts<R: Runtime>(
     app: AppHandle<R>,
     state: State<'_, AppState>,
@@ -1653,177 +1677,6 @@ async fn fetch_url(client: &reqwest::Client, url: &str) -> Result<Vec<u8>, Strin
         return Err(format!("error_{}", status.as_u16()));
     }
     http::response_bytes_with_limit(response, http::MAX_IMPORT_BACKUP_BYTES).await
-}
-
-// ---- updater ---------------------------------------------------------------
-
-const AUTO_UPDATE_CHECK_INTERVAL: Duration = Duration::from_secs(12 * 60 * 60);
-
-pub fn start_auto_update_checker<R: Runtime + 'static>(app: AppHandle<R>) {
-    tauri::async_runtime::spawn(async move {
-        run_auto_update_check(&app).await;
-
-        loop {
-            tokio::time::sleep(AUTO_UPDATE_CHECK_INTERVAL).await;
-            run_auto_update_check(&app).await;
-        }
-    });
-}
-
-async fn run_auto_update_check<R: Runtime>(app: &AppHandle<R>) {
-    let state = app.state::<AppState>();
-    // Backstop for the gate in lib.rs setup: while the data directory is
-    // unavailable we're on a fallback root, so the config we'd read isn't the
-    // user's (and defaults to auto-check on), and emitting `new_version` would
-    // pop the update dialog over the recovery dialog. Don't check until the
-    // user has resolved their data location.
-    if state.data_dir_recovery.is_some() {
-        return;
-    }
-    let auto_check_update = state
-        .config
-        .lock()
-        .map(|cfg| cfg.auto_check_update)
-        .unwrap_or(false);
-
-    if !auto_check_update {
-        return;
-    }
-
-    if let Err(e) = check_update_inner(app, state.inner()).await {
-        log::info!("automatic update check failed: {e}");
-    }
-}
-
-async fn check_update_inner<R: Runtime>(
-    app: &AppHandle<R>,
-    state: &AppState,
-) -> Result<Value, String> {
-    let _guard = state.update_check_lock.lock().await;
-    let updater = updater_builder_with_proxy(app, state)?
-        .build()
-        .map_err(|e| e.to_string())?;
-    let update = updater.check().await.map_err(|e| e.to_string())?;
-
-    match update {
-        Some(update) => {
-            let info = json!({
-                "has_update": true,
-                "version": update.version,
-                "releaseNotes": update.body,
-            });
-            let _ = app.emit("new_version", json!({ "_args": [info.clone()] }));
-            Ok(info)
-        }
-        None => Ok(json!({ "has_update": false })),
-    }
-}
-
-#[tauri::command]
-pub async fn check_update<R: Runtime>(
-    app: AppHandle<R>,
-    state: State<'_, AppState>,
-    _args: Args,
-) -> Result<Value, String> {
-    check_update_inner(&app, state.inner()).await
-}
-
-#[tauri::command]
-pub async fn download_update<R: Runtime>(
-    app: AppHandle<R>,
-    state: State<'_, AppState>,
-    _args: Args,
-) -> Result<Value, String> {
-    let _guard = state.update_check_lock.lock().await;
-    let updater = updater_builder_with_proxy(&app, state.inner())?
-        .build()
-        .map_err(|e| e.to_string())?;
-    let update = updater
-        .check()
-        .await
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| "no update available".to_string())?;
-    let downloaded_version = update.version.clone();
-    let downloaded_release_notes = update.body.clone();
-
-    let app_for_progress = app.clone();
-    update
-        .download_and_install(
-            move |downloaded, total| {
-                let percent = total
-                    .map(|t| {
-                        if t > 0 {
-                            (downloaded as f64 / t as f64) * 100.0
-                        } else {
-                            0.0
-                        }
-                    })
-                    .unwrap_or(0.0);
-                let _ = app_for_progress.emit(
-                    "update_download_progress",
-                    json!({ "_args": [{
-                        "percent": percent,
-                        "transferred": downloaded,
-                        "total": total.unwrap_or(0),
-                        "bytesPerSecond": 0,
-                    }] }),
-                );
-            },
-            || {},
-        )
-        .await
-        .map_err(|e| e.to_string())?;
-
-    let _ = app.emit(
-        "update_downloaded",
-        json!({ "_args": [{
-            "version": downloaded_version,
-            "releaseNotes": downloaded_release_notes,
-        }] }),
-    );
-    Ok(Value::Null)
-}
-
-#[tauri::command]
-pub async fn install_update<R: Runtime>(
-    app: AppHandle<R>,
-    state: State<'_, AppState>,
-    _args: Args,
-) -> Result<Value, String> {
-    if let Some(window) = app.get_webview_window(lifecycle::MAIN_WINDOW_LABEL) {
-        lifecycle::persist_window_geometry(&window, state.inner());
-    }
-    state
-        .is_will_quit
-        .store(true, std::sync::atomic::Ordering::SeqCst);
-    app.restart();
-    #[allow(unreachable_code)]
-    Ok(Value::Null)
-}
-
-fn updater_builder_with_proxy<R: Runtime>(
-    app: &AppHandle<R>,
-    state: &AppState,
-) -> Result<tauri_plugin_updater::UpdaterBuilder, String> {
-    use tauri_plugin_updater::UpdaterExt;
-
-    let mut builder = app.updater_builder();
-    let app_for_before_exit = app.clone();
-    builder = builder.on_before_exit(move || {
-        let state = app_for_before_exit.state::<AppState>();
-        if let Some(window) = app_for_before_exit.get_webview_window(lifecycle::MAIN_WINDOW_LABEL) {
-            lifecycle::persist_window_geometry(&window, state.inner());
-        }
-        state.is_will_quit.store(true, Ordering::SeqCst);
-    });
-
-    if let Some(proxy_url) = http::configured_proxy_url_from_state(state) {
-        let proxy = proxy_url
-            .parse()
-            .map_err(|e| format!("invalid proxy {proxy_url}: {e}"))?;
-        builder = builder.proxy(proxy);
-    }
-    Ok(builder)
 }
 
 // ---- popup menu ------------------------------------------------------------

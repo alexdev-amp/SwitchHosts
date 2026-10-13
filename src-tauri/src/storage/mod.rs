@@ -48,9 +48,6 @@ pub struct AppState {
     /// it before `store_lock`; keep that lock order in all config writers.
     /// Callers that just *read* config go through `config` directly.
     pub config_write_lock: Mutex<()>,
-    /// Serializes update checks so the background scheduler and manual
-    /// "Check for Updates" action do not run two updater requests at once.
-    pub update_check_lock: tokio::sync::Mutex<()>,
     pub is_will_quit: AtomicBool,
     /// Epoch milliseconds of the last window-geometry persist. Used by
     /// the Moved/Resized handlers in `lifecycle` to coalesce writes
@@ -157,7 +154,6 @@ impl AppState {
             store_lock: Mutex::new(()),
             application_recovery: Default::default(),
             config_write_lock: Mutex::new(()),
-            update_check_lock: tokio::sync::Mutex::new(()),
             is_will_quit: AtomicBool::new(false),
             last_geometry_persist_ms: AtomicU64::new(0),
             data_dir_recovery,
@@ -229,7 +225,6 @@ mod tests {
             store_lock: Mutex::new(()),
             application_recovery: Default::default(),
             config_write_lock: Mutex::new(()),
-            update_check_lock: tokio::sync::Mutex::new(()),
             is_will_quit: AtomicBool::new(false),
             last_geometry_persist_ms: AtomicU64::new(0),
             data_dir_recovery: recovery,

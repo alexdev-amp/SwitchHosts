@@ -1,6 +1,11 @@
 .root {
 }
 
+.filter_bar {
+  padding: 8px 8px 6px;
+  border-bottom: 1px solid var(--swh-border-color-1);
+}
+
 .node {
   position: relative;
   line-height: var(--swh-tree-row-height);

@@ -6,6 +6,8 @@ mod find;
 // daemon bin target — must be `pub` so `src/bin/swh_helper.rs` can use
 // it via `switchhosts_lib::helper_proto`.
 pub mod helper_proto;
+mod hosts_api;
+mod hosts_api_sync;
 mod hosts_apply;
 mod hosts_text;
 mod http;
@@ -147,7 +149,6 @@ pub fn run() {
             Some(vec![lifecycle::LOGIN_LAUNCH_ARG]),
         ))
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(
             tauri_plugin_log::Builder::new()
                 .level(log::LevelFilter::Info)
@@ -251,48 +252,6 @@ pub fn run() {
             // the lightweight-mode reopen.
             let app_handle = app.handle().clone();
             let app_state = app.state::<AppState>();
-
-            // Run automatic update checks from the backend so they keep
-            // working while the main window is hidden to the tray. The
-            // renderer's ready event gives UpdateDialog a chance to attach
-            // its listeners before the first check can emit `new_version`.
-            //
-            // The listener fires on the first `main_window_ready` emission.
-            // Only `pages/index.tsx` (the main window's React root) broadcasts
-            // that event — find / tray-mini windows do not — so the trigger is:
-            //
-            //   - `hide_at_launch = false`: setup creates the main window
-            //     and the renderer emits ready shortly after, so the
-            //     check starts within the first second or two of launch.
-            //   - `hide_at_launch = true`: no main window is created at
-            //     setup, the renderer never loads, and the check stays
-            //     **deferred** until the user explicitly shows the main
-            //     window from the tray. This is intentional: a hidden-
-            //     at-launch user has opted into "stay quiet in the
-            //     tray", and running an unbidden network check that
-            //     could pop an `new_version` event into a non-existent
-            //     UpdateDialog would be both wasteful and surprising.
-            //
-            // Once the check has started for a session, the AtomicBool
-            // swap guarantees subsequent tray-rebuild `main_window_ready`
-            // emissions don't re-start it.
-            //
-            // Gated on the recovery state being unset — like the tray title,
-            // refresh scanner and HTTP API below. In recovery we fell back to
-            // the default root, so the config we'd read isn't the user's (and
-            // defaults to auto-check on), and a `new_version` dialog must not
-            // cover the recovery dialog before they resolve their data
-            // location. `run_auto_update_check` re-checks this as a backstop.
-            if app_state.data_dir_recovery.is_none() {
-                let update_checker_started = Arc::new(AtomicBool::new(false));
-                let update_checker_ready_app = app_handle.clone();
-                let update_checker_ready_flag = update_checker_started.clone();
-                app.listen("main_window_ready", move |_event| {
-                    if !update_checker_ready_flag.swap(true, Ordering::SeqCst) {
-                        commands::start_auto_update_checker(update_checker_ready_app.clone());
-                    }
-                });
-            }
 
             let hide_at_launch = app_state
                 .config
@@ -519,6 +478,9 @@ pub fn run() {
             commands::helper_open_login_items,
             commands::refresh_remote_hosts,
             commands::refresh_all_remote_hosts,
+            commands::hosts_api_save_password,
+            commands::hosts_api_forget_password,
+            commands::sync_hosts_api,
             commands::get_apply_history,
             commands::delete_apply_history_item,
             commands::clear_apply_history,
@@ -554,10 +516,6 @@ pub fn run() {
             commands::commit_import,
             commands::discard_import,
             commands::rebase_import,
-            // updater
-            commands::check_update,
-            commands::download_update,
-            commands::install_update,
             // data dir
             commands::get_data_dir,
             commands::get_data_dir_status,

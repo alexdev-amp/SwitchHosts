@@ -5,19 +5,15 @@
 
 import { feedbackUrl, homepageUrl } from '@common/constants'
 import events from '@common/events'
-import type { AppCheckUpdateResult } from '@common/update'
 import { ActionIcon, Menu, type MenuProps, ScrollArea, Tooltip } from '@mantine/core'
 import ImportFromUrl from '@renderer/components/TopBar/ImportFromUrl'
 import { actions, agent } from '@renderer/core/agent'
 import {
-  getFriendlyUpdateErrorMessage,
   getErrorMessage,
   hideAppNotification,
   showErrorNotification,
   showLoadingNotification,
   showSuccessNotification,
-  updateErrorNotification,
-  updateSuccessNotification,
 } from '@renderer/core/notify'
 import type { ImportPreview as Preview } from '@common/import'
 import ImportPreview, { importErrorMessage } from './ImportPreview'
@@ -30,7 +26,6 @@ import {
   IconInfoCircle,
   IconLogout,
   IconMessage2,
-  IconRefresh,
   IconSettings,
   IconUpload,
 } from '@tabler/icons-react'
@@ -50,7 +45,6 @@ const ConfigMenu = (props: IProps) => {
   const [preview, setPreview] = useState<Preview | null>(null)
   const [importing, setImporting] = useState(false)
   const [showImportFromUrl, setShowImportFromUrl] = useState(false)
-  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false)
 
   const strokeWidth = 1.5
 
@@ -83,42 +77,6 @@ const ConfigMenu = (props: IProps) => {
 
             <Menu.Divider />
 
-            <Menu.Item
-              leftSection={<IconRefresh size={iconSize} stroke={strokeWidth} />}
-              disabled={isCheckingUpdate}
-              onClick={async () => {
-                if (isCheckingUpdate) {
-                  return
-                }
-
-                setIsCheckingUpdate(true)
-                const notificationId = showLoadingNotification({
-                  title: lang.check_update,
-                  message: lang.loading,
-                })
-
-                try {
-                  const result = (await actions.checkUpdate()) as AppCheckUpdateResult
-                  if (!result.has_update) {
-                    updateSuccessNotification(notificationId, {
-                      title: lang.check_update,
-                      message: lang.is_latest_version_inform,
-                    })
-                  } else {
-                    hideAppNotification(notificationId)
-                  }
-                } catch (error) {
-                  updateErrorNotification(notificationId, {
-                    title: lang.check_update,
-                    message: getFriendlyUpdateErrorMessage(error, lang),
-                  })
-                } finally {
-                  setIsCheckingUpdate(false)
-                }
-              }}
-            >
-              {lang.check_update}
-            </Menu.Item>
             <Menu.Item
               leftSection={<IconMessage2 size={iconSize} stroke={strokeWidth} />}
               onClick={() => actions.openUrl(feedbackUrl)}

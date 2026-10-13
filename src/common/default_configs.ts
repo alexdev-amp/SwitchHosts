@@ -41,7 +41,6 @@ const configs = {
   http_api_port: defaultHttpApiPort,
   tray_mini_window: true,
   multi_chose_folder_switch_all: false,
-  auto_check_update: true,
   lightweight_mode: false,
   quit_on_close: false,
 
@@ -49,6 +48,11 @@ const configs = {
   find_is_regexp: false,
   find_is_ignore_case: false,
   find_result_column_widths: [] as number[],
+
+  // hosts API source (src-tauri/src/hosts_api.rs) — base URL and
+  // username only; the password lives in the OS keychain, never here.
+  hosts_api_base_url: undefined as string | undefined,
+  hosts_api_username: undefined as string | undefined,
 
   // other
   env: 'PROD' as 'PROD' | 'DEV',

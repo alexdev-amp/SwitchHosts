@@ -76,10 +76,6 @@ const LEGACY_TO_NEW: Record<string, string> = {
   importDataFromUrl: 'import_data_from_url',
   migrateCheck: 'migration_status',
 
-  checkUpdate: 'check_update',
-  downloadUpdate: 'download_update',
-  installUpdate: 'install_update',
-
   openUrl: 'open_url',
   showItemInFolder: 'show_item_in_folder',
   updateTrayTitle: 'update_tray_title',
@@ -104,6 +100,11 @@ const REMOVED = new Set<string>([
   // migrateData is triggered internally by the Rust startup flow in v5 and is
   // no longer a renderer-invocable action.
   'migrateData',
+  // Auto-update was removed entirely: this is now an internal tool, not a
+  // publicly distributed app that needs a self-update mechanism.
+  'checkUpdate',
+  'downloadUpdate',
+  'installUpdate',
 ])
 
 function snakeCase(s: string): string {

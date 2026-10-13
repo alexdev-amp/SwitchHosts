@@ -6,7 +6,7 @@
 import { ConfigsType, ThemeType } from '@common/default_configs'
 import { LocaleName } from '@common/i18n'
 import { Box, Button, Checkbox, Group, SegmentedControl, Select, Stack, Text } from '@mantine/core'
-import DescriptionText, { checkboxDescriptionStyles } from '@renderer/components/DescriptionText'
+import DescriptionText from '@renderer/components/DescriptionText'
 import { actions, agent } from '@renderer/core/agent'
 import useI18n from '@renderer/models/useI18n'
 import { normalizeTheme } from '@renderer/utils/theme'
@@ -240,16 +240,6 @@ const General = (props: IProps) => {
             label={lang.quit_on_close}
           />
         </Group>
-      </Box>
-
-      <Box w="100%">
-        <Checkbox
-          checked={data.auto_check_update}
-          onChange={(e) => onChange({ auto_check_update: e.target.checked })}
-          label={lang.auto_check_update}
-          description={lang.auto_check_update_desc}
-          styles={checkboxDescriptionStyles}
-        />
       </Box>
 
       {platform === 'darwin' && helperStatus !== 'not_supported' ? (

@@ -6,7 +6,7 @@
 import logo from '@/assets/logo@4x.png'
 import events from '@common/events'
 import { findItemById } from '@common/hostsFn'
-import { ActionIcon, Badge, Box, Divider, Flex } from '@mantine/core'
+import { ActionIcon, Badge, Box, Divider, Flex, Menu } from '@mantine/core'
 import ItemIcon from '@renderer/components/ItemIcon'
 import ApplicationRecoveryNotice from '@renderer/components/ApplicationRecoveryNotice'
 import SwitchButton from '@renderer/components/SwitchButton'
@@ -21,6 +21,7 @@ import {
   IconLayoutSidebarRightExpand,
   IconMinus,
   IconPlus,
+  IconServer,
   IconSquare,
   IconX,
 } from '@tabler/icons-react'
@@ -105,14 +106,27 @@ const TopBar = (props: IProps) => {
               <IconLayoutSidebarLeftExpand size={iconSize} stroke={iconStroke} />
             )}
           </ActionIcon>
-          <ActionIcon
-            aria-label="Add"
-            onClick={() => agent.broadcast(events.add_new)}
-            variant="subtle"
-            color="gray"
-          >
-            <IconPlus size={iconSize} stroke={iconStroke} />
-          </ActionIcon>
+          <Menu shadow="md" withinPortal position="bottom-start">
+            <Menu.Target>
+              <ActionIcon aria-label="Add" variant="subtle" color="gray">
+                <IconPlus size={iconSize} stroke={iconStroke} />
+              </ActionIcon>
+            </Menu.Target>
+            <Menu.Dropdown>
+              <Menu.Item
+                leftSection={<IconPlus size={iconSize} stroke={iconStroke} />}
+                onClick={() => agent.broadcast(events.add_new)}
+              >
+                {lang.hosts_add}
+              </Menu.Item>
+              <Menu.Item
+                leftSection={<IconServer size={iconSize} stroke={iconStroke} />}
+                onClick={() => agent.broadcast(events.add_hosts_api_source)}
+              >
+                {lang.hosts_api_add_menu}
+              </Menu.Item>
+            </Menu.Dropdown>
+          </Menu>
         </Flex>
       </div>
 

@@ -74,8 +74,13 @@ pub struct AppConfig {
     #[serde(deserialize_with = "deserialize_http_api_port")]
     pub http_api_port: u16,
 
-    // update
-    pub auto_check_update: bool,
+    // hosts API source (see src/hosts_api.rs and src/hosts_api_sync.rs)
+    // -- base URL and username only. The password lives in the OS
+    // keychain, never here. The synced folder/company-entry use fixed
+    // node ids (see hosts_api_sync::FOLDER_ID / COMPANY_ENTRY_ID), so no
+    // id bookkeeping is needed in config.
+    pub hosts_api_base_url: Option<String>,
+    pub hosts_api_username: Option<String>,
 }
 
 // A hand-edited or invalid port must not make load() discard every other
@@ -138,7 +143,8 @@ impl Default for AppConfig {
             http_api_only_local: true,
             http_api_port: DEFAULT_HTTP_API_PORT,
 
-            auto_check_update: true,
+            hosts_api_base_url: None,
+            hosts_api_username: None,
         }
     }
 }
@@ -468,13 +474,6 @@ mod tests {
     }
 
     #[test]
-    fn defaults_auto_check_update_to_true() {
-        let cfg = AppConfig::default();
-
-        assert!(cfg.auto_check_update);
-    }
-
-    #[test]
     fn load_ignores_legacy_auto_download_update() {
         let path = std::env::temp_dir().join(format!(
             "switchhosts-config-test-{}-{}.json",
@@ -494,17 +493,6 @@ mod tests {
         let _ = std::fs::remove_file(path);
 
         assert_eq!(cfg.theme, "dark");
-        assert!(cfg.auto_check_update);
-    }
-
-    #[test]
-    fn apply_partial_accepts_auto_check_update() {
-        let mut cfg = AppConfig::default();
-
-        cfg.apply_partial(&json!({ "auto_check_update": false }))
-            .unwrap();
-
-        assert!(!cfg.auto_check_update);
     }
 
     #[test]

@@ -6,6 +6,7 @@
 export default {
   active_main_window: 'active_main_window',
   add_new: 'add_new',
+  add_hosts_api_source: 'add_hosts_api_source',
   browser_link: 'browser_link',
   cmd_run_result: 'cmd_run_result',
   config_updated: 'config_updated',
@@ -18,7 +19,6 @@ export default {
   http_api_status_changed: 'http_api_status_changed',
   main_window_ready: 'main_window_ready',
   move_to_trashcan: 'move_to_trashcan',
-  new_version: 'new_version',
   reload_list: 'reload_list',
   reapply_saved_hosts: 'reapply_saved_hosts',
   select_hosts: 'select_hosts',
@@ -35,6 +35,4 @@ export default {
   toggle_left_panel: 'toggle_left_panel',
   toggle_right_panel: 'toggle_right_panel',
   tray_list_updated: 'tray:list_updated',
-  update_download_progress: 'update_download_progress',
-  update_downloaded: 'update_downloaded',
 }

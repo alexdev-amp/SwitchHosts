@@ -1,5 +1,6 @@
 import events from '@common/events'
 import About from '@renderer/components/About'
+import AddHostsApiSource from '@renderer/components/AddHostsApiSource'
 import EditHostsInfo from '@renderer/components/EditHostsInfo'
 import History from '@renderer/components/History'
 import LeftPanel from '@renderer/components/LeftPanel'
@@ -13,7 +14,6 @@ import DataDirRecoveryModal, {
 import ResizeHandle from '@renderer/components/ResizeHandle'
 import RightPanel from '@renderer/components/RightPanel'
 import SetWriteMode from '@renderer/components/SetWriteMode'
-import UpdateDialog from '@renderer/components/UpdateDialog'
 import { actions, agent } from '@renderer/core/agent'
 import useOnBroadcast from '@renderer/core/useOnBroadcast'
 import useConfigs from '@renderer/models/useConfigs'
@@ -238,10 +238,10 @@ const MainPage = () => {
       </div>
 
       <EditHostsInfo />
+      <AddHostsApiSource />
       <SetWriteMode />
       <PreferencePanel />
       <History />
-      <UpdateDialog />
       <About />
     </div>
   )
