@@ -1,11 +1,17 @@
-# Unsigned build, on every push to master.
+# Unsigned build, gated on CI passing on master.
 #
 # Separate from release.yml on purpose: release.yml is the tag-triggered,
 # signed/notarized, multi-arch pipeline (needs Apple + Tauri signing
 # secrets configured). This one needs none of that — it builds exactly
 # one unsigned artifact per OS (macOS universal, Windows, Linux) and
 # republishes them to a single rolling "nightly" pre-release, so there's
-# always one stable link to the latest master build.
+# always one stable link to the latest GREEN master build.
+#
+# Triggered by the CI workflow's completion rather than push directly,
+# so a commit that fails tests never overwrites the release teammates
+# are downloading from. `workflow_run`'s payload carries its own sha/ref
+# (not github.sha, which would resolve to *this* workflow file's commit
+# on the default branch, not necessarily the commit CI just tested).
 #
 # Unsigned means Gatekeeper/SmartScreen will warn on first run:
 #   macOS:   right-click the app -> Open, once.
@@ -14,7 +20,9 @@
 name: Unsigned Build
 
 on:
-  push:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
     branches:
       - master
 
@@ -29,6 +37,7 @@ concurrency:
 
 jobs:
   build:
+    if: github.event.workflow_run.conclusion == 'success'
     strategy:
       fail-fast: false
       matrix:
@@ -48,6 +57,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v7.0.0
@@ -115,6 +126,7 @@ jobs:
 
   publish:
     needs: build
+    if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -122,6 +134,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Download all platform artifacts
         uses: actions/download-artifact@v4
@@ -148,11 +162,11 @@ jobs:
         with:
           tag_name: nightly
           name: 'Nightly (unsigned)'
-          target_commitish: ${{ github.sha }}
+          target_commitish: ${{ github.event.workflow_run.head_sha }}
           prerelease: true
           make_latest: false
           body: |
-            Automatic **unsigned** build from the latest push to `master` (${{ github.sha }}).
+            Automatic **unsigned** build of the latest commit on `master` to pass CI (${{ github.event.workflow_run.head_sha }}).
 
             Not code-signed or notarized:
             - **macOS**: right-click the app → *Open* the first time to bypass Gatekeeper.
