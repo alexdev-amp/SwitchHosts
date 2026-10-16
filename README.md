@@ -11,3 +11,4 @@ We extended it with one thing specific to our organization: a connected source t
 ---
 
 SwitchHosts itself is free and open source software, released under the [Apache License](./LICENSE).
+
