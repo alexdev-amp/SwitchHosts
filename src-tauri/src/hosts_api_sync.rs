@@ -14,6 +14,7 @@
 
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use serde_json::{json, Value};
@@ -29,6 +30,7 @@ pub const COMPANY_ENTRY_ID: &str = "hosts-api-company";
 const FOLDER_TITLE: &str = "API servers";
 const COMPANY_TITLE: &str = "Company (always on)";
 const SYNC_INTERVAL: Duration = Duration::from_secs(60);
+static FIRST_SYNC_DONE: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug)]
 pub enum SyncError {
@@ -104,19 +106,16 @@ pub async fn sync<R: Runtime>(app: &AppHandle<R>, state: &AppState) -> Result<Sy
     let company = hosts_api::fetch_company_block(&client, &base_url, &username, &password).await?;
     let machines_synced = machines.len();
 
-    let reapply_content = commit_sync(state, &machines, &company)?;
+    // The first sync after startup re-applies even without a change, so a
+    // system hosts file left stale by an earlier version gets corrected.
+    let force_reapply = !FIRST_SYNC_DONE.swap(true, Ordering::SeqCst);
+    let reapply_content = commit_sync(state, &machines, &company, force_reapply)?;
 
-    // A machine that was toggled on and then disappeared from the API
-    // must be dropped from the live system hosts file too, or stale
-    // entries pile up there forever as the backend's servers rotate.
-    // `commit_sync` only returns content when a removed node was "on";
-    // this reuses the same apply pipeline a manual Apply click uses
-    // (see `apply_aggregated_content`'s doc comment).
+    // Reuses the same apply pipeline a manual Apply click uses (see
+    // `apply_aggregated_content`'s doc comment); an unchanged file is a no-op.
     if let Some(content) = reapply_content {
         if let Err(ApplyPipelineError::Apply(e)) = apply_aggregated_content(app, state, &content).await {
-            log::warn!(
-                "hosts API sync: removed an enabled machine but failed to refresh the system hosts file: {e}"
-            );
+            log::warn!("hosts API sync: failed to refresh the system hosts file: {e}");
         }
     }
 
@@ -155,20 +154,26 @@ fn machine_node_id(label: &str) -> String {
     format!("hosts-api-m-{:016x}", hasher.finish())
 }
 
-/// Returns `Some(aggregated_content)` when a machine that was toggled
-/// on got removed in this sync (the live system hosts file needs to be
-/// rewritten without it), `None` otherwise. The content is computed
-/// here, while `manifest` (post-removal) and `state.paths` are already
-/// in hand, but writing it is the caller's job: it requires an
-/// `AppHandle` and a privileged write, neither of which belong inside
-/// the store lock held for the rest of this function (see A5 in
-/// `commands::apply_aggregated_content`'s doc comment).
-fn commit_sync(state: &AppState, machines: &[Machine], company: &str) -> Result<Option<String>, SyncError> {
+/// Returns `Some(aggregated_content)` when the live system hosts file
+/// needs rewriting: an enabled entry was removed or its content changed,
+/// or `force_reapply` is set and at least one API entry is enabled.
+/// `None` otherwise. The content is computed here, while `manifest` and
+/// `state.paths` are already in hand, but writing it is the caller's job:
+/// it requires an `AppHandle` and a privileged write, neither of which
+/// belong inside the store lock held for the rest of this function (see
+/// A5 in `commands::apply_aggregated_content`'s doc comment).
+fn commit_sync(
+    state: &AppState,
+    machines: &[Machine],
+    company: &str,
+    force_reapply: bool,
+) -> Result<Option<String>, SyncError> {
     let _guard = state.lock_store().map_err(|e| SyncError::Storage(e.to_string()))?;
     let mut manifest = Manifest::load(&state.paths).map_err(|e| SyncError::Storage(e.to_string()))?;
 
     let mut touched_entries: Vec<String> = Vec::new();
-    let mut removed_an_enabled_machine = false;
+    let mut needs_reapply = false;
+    let mut any_api_entry_on = false;
 
     ensure_folder(&mut manifest.root);
 
@@ -183,7 +188,7 @@ fn commit_sync(state: &AppState, machines: &[Machine], company: &str) -> Result<
     for id in stale_ids {
         if let Some((removed, _parent_id)) = manifest::remove_node(&mut manifest.root, &id) {
             if removed.get("on").and_then(Value::as_bool) == Some(true) {
-                removed_an_enabled_machine = true;
+                needs_reapply = true;
             }
         }
         entries::delete_entry(&state.paths.entries_dir, &id).map_err(|e| SyncError::Storage(e.to_string()))?;
@@ -214,7 +219,7 @@ fn commit_sync(state: &AppState, machines: &[Machine], company: &str) -> Result<
             manifest::insert_node(&mut manifest.root, node, Some(FOLDER_ID));
         }
         let content = machine.hosts_file.clone().unwrap_or_default();
-        entries::write_entry(&state.paths.entries_dir, &id, &content).map_err(|e| SyncError::Storage(e.to_string()))?;
+        write_and_track(state, &manifest.root, &id, &content, &mut needs_reapply, &mut any_api_entry_on)?;
         touched_entries.push(id);
     }
 
@@ -227,8 +232,14 @@ fn commit_sync(state: &AppState, machines: &[Machine], company: &str) -> Result<
         });
         manifest::insert_node(&mut manifest.root, node, None);
     }
-    entries::write_entry(&state.paths.entries_dir, COMPANY_ENTRY_ID, company)
-        .map_err(|e| SyncError::Storage(e.to_string()))?;
+    write_and_track(
+        state,
+        &manifest.root,
+        COMPANY_ENTRY_ID,
+        company,
+        &mut needs_reapply,
+        &mut any_api_entry_on,
+    )?;
     touched_entries.push(COMPANY_ENTRY_ID.to_string());
 
     let mut targets = vec![transaction::Target::Manifest];
@@ -237,7 +248,7 @@ fn commit_sync(state: &AppState, machines: &[Machine], company: &str) -> Result<
     transaction::run(&state.paths, targets, || manifest.save(&state.paths))
         .map_err(|e| SyncError::Storage(e.to_string()))?;
 
-    if !removed_an_enabled_machine {
+    if !needs_reapply && !(force_reapply && any_api_entry_on) {
         return Ok(None);
     }
 
@@ -248,6 +259,30 @@ fn commit_sync(state: &AppState, machines: &[Machine], company: &str) -> Result<
     let content = hosts_apply::aggregate_selected_content(&manifest.root, &state.paths, remove_duplicate_records)
         .map_err(|e| SyncError::Storage(e.to_string()))?;
     Ok(Some(content))
+}
+
+/// Writes an entry's new content, noting whether it is enabled and
+/// whether an enabled entry's content actually changed (comparing with the
+/// previous file is enough -- no separate hash needs storing).
+fn write_and_track(
+    state: &AppState,
+    root: &[Value],
+    id: &str,
+    content: &str,
+    needs_reapply: &mut bool,
+    any_on: &mut bool,
+) -> Result<(), SyncError> {
+    let is_on = manifest::find_node(root, id)
+        .and_then(|node| node.get("on").and_then(Value::as_bool))
+        .unwrap_or(false);
+    if is_on {
+        *any_on = true;
+        let previous = entries::read_entry(&state.paths.entries_dir, id).map_err(|e| SyncError::Storage(e.to_string()))?;
+        if previous != content {
+            *needs_reapply = true;
+        }
+    }
+    entries::write_entry(&state.paths.entries_dir, id, content).map_err(|e| SyncError::Storage(e.to_string()))
 }
 
 fn ensure_folder(root: &mut Vec<Value>) {
@@ -335,7 +370,7 @@ mod tests {
     #[test]
     fn first_sync_creates_a_single_choice_folder_with_machine_children() {
         let (state, root) = fixture_state();
-        let _ = commit_sync(&state, &[machine("qa-1", &["qa"]), machine("qa-2", &[])], "1.1.1.1 company.test\n").unwrap();
+        let _ = commit_sync(&state, &[machine("qa-1", &["qa"]), machine("qa-2", &[])], "1.1.1.1 company.test\n", false).unwrap();
 
         let manifest = Manifest::load(&state.paths).unwrap();
         let folder = manifest::find_node(&manifest.root, FOLDER_ID).unwrap();
@@ -356,7 +391,7 @@ mod tests {
     #[test]
     fn resync_updates_existing_machine_without_resetting_on_state() {
         let (state, root) = fixture_state();
-        let _ = commit_sync(&state, &[machine("qa-1", &["qa"])], "company\n").unwrap();
+        let _ = commit_sync(&state, &[machine("qa-1", &["qa"])], "company\n", false).unwrap();
 
         let id = machine_node_id("qa-1");
         let mut manifest = Manifest::load(&state.paths).unwrap();
@@ -368,7 +403,7 @@ mod tests {
         // Re-sync with an updated tag set and ip.
         let mut updated = machine("qa-1", &["qa", "new-tag"]);
         updated.public_ip = Some("5.6.7.8".to_string());
-        let reapply = commit_sync(&state, &[updated], "company\n").unwrap();
+        let reapply = commit_sync(&state, &[updated], "company\n", false).unwrap();
         assert!(
             reapply.is_none(),
             "qa-1 is still returned by the API, just updated -- no reapply needed"
@@ -386,10 +421,10 @@ mod tests {
     #[test]
     fn resync_removes_machines_no_longer_returned_by_the_api() {
         let (state, root) = fixture_state();
-        let _ = commit_sync(&state, &[machine("qa-1", &[]), machine("qa-2", &[])], "company\n").unwrap();
+        let _ = commit_sync(&state, &[machine("qa-1", &[]), machine("qa-2", &[])], "company\n", false).unwrap();
         let gone_id = machine_node_id("qa-2");
 
-        let reapply = commit_sync(&state, &[machine("qa-1", &[])], "company\n").unwrap();
+        let reapply = commit_sync(&state, &[machine("qa-1", &[])], "company\n", false).unwrap();
         assert!(
             reapply.is_none(),
             "qa-2 was never toggled on, so the system hosts file doesn't need rewriting"
@@ -414,7 +449,7 @@ mod tests {
         // qa-2 excluded, so the caller can rewrite the system file --
         // otherwise its entry lingers in /etc/hosts forever.
         let (state, root) = fixture_state();
-        let _ = commit_sync(&state, &[machine("qa-1", &[]), machine("qa-2", &[])], "company\n").unwrap();
+        let _ = commit_sync(&state, &[machine("qa-1", &[]), machine("qa-2", &[])], "company\n", false).unwrap();
 
         let qa2_id = machine_node_id("qa-2");
         let mut manifest = Manifest::load(&state.paths).unwrap();
@@ -423,7 +458,7 @@ mod tests {
         });
         manifest.save(&state.paths).unwrap();
 
-        let reapply = commit_sync(&state, &[machine("qa-1", &[])], "company\n").unwrap();
+        let reapply = commit_sync(&state, &[machine("qa-1", &[])], "company\n", false).unwrap();
 
         let content = reapply.expect("removing an enabled machine must trigger a reapply");
         assert!(
@@ -445,10 +480,80 @@ mod tests {
     #[test]
     fn removing_a_disabled_machine_does_not_report_content() {
         let (state, root) = fixture_state();
-        let _ = commit_sync(&state, &[machine("qa-1", &[]), machine("qa-2", &[])], "company\n").unwrap();
+        let _ = commit_sync(&state, &[machine("qa-1", &[]), machine("qa-2", &[])], "company\n", false).unwrap();
 
-        let reapply = commit_sync(&state, &[machine("qa-1", &[])], "company\n").unwrap();
+        let reapply = commit_sync(&state, &[machine("qa-1", &[])], "company\n", false).unwrap();
         assert!(reapply.is_none());
+
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    fn turn_on(state: &AppState, id: &str) {
+        let mut manifest = Manifest::load(&state.paths).unwrap();
+        update_node_in_place(&mut manifest.root, id, |n| {
+            n.as_object_mut().unwrap().insert("on".into(), json!(true));
+        });
+        manifest.save(&state.paths).unwrap();
+    }
+
+    fn with_hosts(label: &str, hosts: &str) -> Machine {
+        let mut m = machine(label, &[]);
+        m.hosts_file = Some(hosts.to_string());
+        m
+    }
+
+    #[test]
+    fn changed_content_of_an_enabled_machine_reports_the_new_content() {
+        let (state, root) = fixture_state();
+        let _ = commit_sync(&state, &[with_hosts("dev-1", "54.1.1.1 dev-1\n")], "company\n", false).unwrap();
+        turn_on(&state, &machine_node_id("dev-1"));
+
+        let reapply = commit_sync(&state, &[with_hosts("dev-1", "18.184.54.249 dev-1\n")], "company\n", false).unwrap();
+
+        let content = reapply.expect("an enabled machine's new IP must reach the system hosts file");
+        assert!(content.contains("18.184.54.249 dev-1"), "{content}");
+        assert!(!content.contains("54.1.1.1"), "{content}");
+
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[test]
+    fn changed_content_of_a_disabled_machine_does_not_report_content() {
+        let (state, root) = fixture_state();
+        let _ = commit_sync(&state, &[with_hosts("dev-1", "54.1.1.1 dev-1\n")], "company\n", false).unwrap();
+
+        let reapply = commit_sync(&state, &[with_hosts("dev-1", "18.184.54.249 dev-1\n")], "company\n", false).unwrap();
+        assert!(reapply.is_none());
+
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[test]
+    fn changed_company_block_reports_content() {
+        let (state, root) = fixture_state();
+        let _ = commit_sync(&state, &[], "1.1.1.1 old.company\n", false).unwrap();
+
+        let content = commit_sync(&state, &[], "2.2.2.2 new.company\n", false)
+            .unwrap()
+            .expect("the always-on company block changed");
+        assert!(content.contains("2.2.2.2 new.company"), "{content}");
+        assert!(!content.contains("old.company"), "{content}");
+
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[test]
+    fn unchanged_sync_reports_content_only_when_forced() {
+        let (state, root) = fixture_state();
+        let _ = commit_sync(&state, &[with_hosts("dev-1", "18.184.54.249 dev-1\n")], "company\n", false).unwrap();
+        turn_on(&state, &machine_node_id("dev-1"));
+
+        let unforced = commit_sync(&state, &[with_hosts("dev-1", "18.184.54.249 dev-1\n")], "company\n", false).unwrap();
+        assert!(unforced.is_none(), "nothing changed, so no rewrite");
+
+        let forced = commit_sync(&state, &[with_hosts("dev-1", "18.184.54.249 dev-1\n")], "company\n", true).unwrap();
+        let content = forced.expect("first sync after startup must re-apply enabled entries");
+        assert!(content.contains("18.184.54.249 dev-1"), "{content}");
 
         std::fs::remove_dir_all(&root).ok();
     }
